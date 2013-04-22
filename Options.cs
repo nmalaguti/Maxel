@@ -27,6 +27,7 @@
 
 namespace Maxel
 {
+    using System.Text;
     using CommandLine;
     using CommandLine.Text;
 
@@ -93,7 +94,11 @@ namespace Maxel
         [HelpOption]
         public string GetUsage()
         {
-            return HelpText.AutoBuild(this, current => HelpText.DefaultParsingErrorsHandler(this, current));
+            var stringBuilder = new StringBuilder();
+            stringBuilder.AppendLine("Usage: Maxel.exe <uri>");
+            stringBuilder.Append(HelpText.AutoBuild(this, current => HelpText.DefaultParsingErrorsHandler(this, current)));
+
+            return stringBuilder.ToString();
         }
 
         #endregion

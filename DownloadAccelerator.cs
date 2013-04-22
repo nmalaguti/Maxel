@@ -313,7 +313,7 @@ namespace Maxel
         /// <returns>
         /// The <see cref="Task"/>.
         /// </returns>
-        /// <exception cref="Exception">
+        /// <exception cref="DownloadAcceleratorException">
         /// Thrown if the web server returns the wrong amount of data.
         /// </exception>
         private async Task<Status> CopyNextChunkAsync(MemoryMappedFile memoryMappedFile)
@@ -338,7 +338,7 @@ namespace Maxel
             {
                 if (long.Parse(webResponse.Headers[HttpResponseHeader.ContentLength]) != length)
                 {
-                    throw new Exception("Server returned incorrect amount of data");
+                    throw new DownloadAcceleratorException("Server returned incorrect amount of data");
                 }
 
                 using (MemoryMappedViewStream memoryMappedViewStream = memoryMappedFile.CreateViewStream(offset, length))
@@ -403,7 +403,7 @@ namespace Maxel
         /// The initialize.
         /// </summary>
         /// <exception cref="Exception">
-        /// Thrown if the web server doesn't support accept range downloading.
+        /// Thrown if downloading data will not be possible.
         /// </exception>
         private void Initialize()
         {
@@ -415,7 +415,7 @@ namespace Maxel
                 {
                     if (string.IsNullOrEmpty(webResponse.Headers[HttpResponseHeader.AcceptRanges]))
                     {
-                        throw new Exception("Server doesn't support ranges. Aborting");
+                        throw new DownloadAcceleratorException("Server doesn't support ranges. Aborting.");
                     }
 
                     this.Size = long.Parse(webResponse.Headers[HttpResponseHeader.ContentLength]);
@@ -431,7 +431,16 @@ namespace Maxel
 
                 if (ex.InnerException != null && ex.InnerException.GetType() == typeof(AuthenticationException))
                 {
-                    throw new Exception("Authentication required");
+                    throw new DownloadAcceleratorException("Unable to validate SSL certificate. Aborting.");
+                }
+
+                var httpWebResponse = ex.Response as HttpWebResponse;
+                if (httpWebResponse != null)
+                {
+                    if (httpWebResponse.StatusCode == HttpStatusCode.Unauthorized)
+                    {
+                        throw new DownloadAcceleratorException("Authentication required. Aborting.");                        
+                    }
                 }
 
                 throw;

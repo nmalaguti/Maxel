@@ -43,6 +43,20 @@ namespace Maxel
     /// </summary>
     public class Program
     {
+        #region Constants
+
+        /// <summary>
+        /// The speed average seconds.
+        /// </summary>
+        private const int SpeedAverageSeconds = 5;
+
+        /// <summary>
+        /// The update frequency.
+        /// </summary>
+        private const double UpdateFrequency = 0.1;
+
+        #endregion
+
         #region Static Fields
 
         /// <summary>
@@ -184,25 +198,39 @@ namespace Maxel
                 Console.Write(']');
             }
 
-            var reportCancellationTokenSource = new CancellationTokenSource();
-            ReportSpeed(reportCancellationTokenSource.Token);
+            try
+            {
+                var downloadAccelerator = new DownloadAccelerator(
+                    uri,
+                    options.OutputFile,
+                    options.NumberOfConnections,
+                    networkCredentials,
+                    options.IgnoreCertificateErrors,
+                    options.ChunkSize);
 
-            var downloadAccelerator = new DownloadAccelerator(
-                uri, 
-                options.OutputFile, 
-                options.NumberOfConnections, 
-                networkCredentials, 
-                options.IgnoreCertificateErrors, 
-                options.ChunkSize);
-            downloadAccelerator.DataApplied += ProgressCallback;
-            size = downloadAccelerator.Size;
+                downloadAccelerator.DataApplied += ProgressCallback;
+                size = downloadAccelerator.Size;
 
-            downloadAccelerator.Download().Wait();
-            reportCancellationTokenSource.Cancel();
+                var reportCancellationTokenSource = new CancellationTokenSource();
+                ReportSpeed(reportCancellationTokenSource.Token);
 
-            lock (consoleLock)
+                downloadAccelerator.Download().Wait();
+                reportCancellationTokenSource.Cancel();
+
+                lock (consoleLock)
+                {
+                    Console.SetCursorPosition(0, cursorTop + 3);
+                }
+            }
+            catch (DownloadAcceleratorException ex)
             {
                 Console.SetCursorPosition(0, cursorTop + 3);
+                Console.WriteLine(ex.Message);
+            }
+            catch (Exception ex)
+            {
+                Console.SetCursorPosition(0, cursorTop + 3);
+                Console.WriteLine("Unknown Error: {0}. Aborting.", ex.Message);
             }
         }
 
@@ -243,7 +271,7 @@ namespace Maxel
             elapsedStopwatch.Start();
 
             var speedStopwatch = new Stopwatch();
-            var speeds = new double[50];
+            var speeds = new double[(int)(SpeedAverageSeconds / UpdateFrequency)];
             int loops = 0;
             while (!cancellationToken.IsCancellationRequested)
             {
@@ -255,7 +283,7 @@ namespace Maxel
 
                 try
                 {
-                    await Task.Delay(TimeSpan.FromSeconds(0.1), cancellationToken);
+                    await Task.Delay(TimeSpan.FromSeconds(UpdateFrequency), cancellationToken);
                 }
                 catch (OperationCanceledException)
                 {
@@ -271,7 +299,7 @@ namespace Maxel
                                         - elapsedStopwatch.Elapsed.TotalSeconds
                                       : 0;
                 }
-                
+
                 WriteSpeed(speeds.Take(Math.Min(loops, speeds.Length)).Average());
                 WriteTimes(elapsedStopwatch.Elapsed, TimeSpan.FromSeconds(secondsLeft));
             }
@@ -337,7 +365,7 @@ namespace Maxel
             {
                 stringBuilder.Append('*');
             }
-            
+
             lock (consoleLock)
             {
                 Console.SetCursorPosition(1, cursorTop + 2);
